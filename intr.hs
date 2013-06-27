@@ -15,7 +15,7 @@
 import Control.Monad.State
 import System.IO -- for writeAll
 import Data.Word
-import Data.List (elemIndex) -- used in compile'
+import Data.List (elemIndex, intercalate) -- used in compile'
 
 data Code = Access Word Code
           | Function Code Code
@@ -331,6 +331,14 @@ pMulF = Lambda "self" $
 
 pMul = Ap pY pMulF
 
+pFactF = Lambda "self" $
+            Lambda "n" $
+              IfZ (Var "n")
+                (I 1)
+                (Ap (Ap pMul (Var "n")) (Ap (Var "self") (Plus (Var "n") (I (-1)))))
+
+pFact = Ap pY pFactF
+
 cid = compile pid
 czero = compile pzero
 csuc = compile psuc
@@ -348,17 +356,27 @@ ctest6 = compile ptest6
 cY = compile pY
 cMulF = compile pMulF
 cMul = compile pMul
+cFactF = compile pFactF
+cFact = compile pFact
 
 writeAll = do
   let files = [("ctest1", ctest1), ("ctest2", ctest2), ("ctest3", ctest3),
                ("ctest4", ctest4), ("ctest5", ctest5), ("ctest6", ctest6),
                ("cflip", cflip), ("cid", cid), ("czero", czero), ("csuc", csuc),
                ("cadd", cadd), ("c1", c1), ("c2", c2), ("cZ515pred", cZ515pred),
-               ("cY", cY), ("cMulF", cMulF), ("cMul", cMul)]
+               ("cY", cY), ("cMulF", cMulF), ("cMul", cMul), ("pFactF", cFactF),
+               ("cFact", cFact)]
       writeCode code handle = hPutStr handle (printCode code)
       writeAssembled code handle = hPutStr handle (foldl (\x y -> x ++ "\n" ++ y) [] $ map show $ assemble code)
   mapM_ (\(f, c) -> withFile (f ++ "-intr.s") WriteMode (writeCode c)) files
   mapM_ (\(f, c) -> withFile (f ++ "-intr.in") WriteMode (writeAssembled c)) files
+
+cl :: Expr -> String -> IO ()
+cl exp filename = do
+  let code = assemble $ compile exp
+      flatcode = intercalate "\n" $ map show code
+  withFile filename WriteMode $ \ handle ->
+    hPutStr handle flatcode
 
 {-
 
