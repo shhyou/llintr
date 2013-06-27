@@ -76,7 +76,9 @@ compile' var (Ap e0 e1) c = Save $
                             compile' var e1 $
                             Restore $
                             compile' var e0 $
+                            Save $
                             Call $
+                            Restore $
                             c
 compile' _ (I n) c = ConstInt n c
 compile' var (Plus e1 e2) c = Save $
