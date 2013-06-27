@@ -229,6 +229,46 @@ newName = do
   modify (+1)
   return ('L' : show n)
 
+assemble' :: Code -> Int -> [Int]
+assemble' (Access m c) offset =
+  0 : (fromIntegral m) : assemble' c (offset+2)
+assemble' (Function c e) offset =
+  let rest = assemble' c (offset+2) 
+      addr = offset + 2 + length rest
+  in  [1, addr] ++
+      rest ++
+      assemble' e addr
+assemble' (Save c) offset =
+  2 : assemble' c (offset+1)
+assemble' (Restore c) offset =
+  3 : assemble' c (offset+1)
+assemble' (Call c) offset =
+  4 : assemble' c (offset+1)
+assemble' Return _ =
+  [5]
+assemble' Halt _ =
+  [6]
+assemble' (ConstInt m c) offset =
+  7 : fromIntegral m : assemble' c (offset+2)
+assemble' (Add c) offset =
+  8 : assemble' c (offset+1)
+assemble' (BranchNZ e1 e2 c) offset =
+  let ifcode = assemble' e1 (offset+2)
+      iflength = length ifcode + 2
+      elsecode = assemble' e2 (offset+2+iflength)
+      elselength = length elsecode
+      restcode = assemble' c (offset+2+iflength+elselength)
+  in  [9, iflength] ++
+      ifcode ++
+      [10, elselength] ++
+      elsecode ++
+      restcode
+
+assemble' (Jump c) offset =
+  []
+
+assemble c = assemble' c 0
+
 printCode' :: Code -> State Int (String -> String)
 printCode' (Save c) = do
   showRest <- printCode' c
@@ -316,7 +356,9 @@ writeAll = do
                ("cadd", cadd), ("c1", c1), ("c2", c2), ("cZ515pred", cZ515pred),
                ("cY", cY), ("cMulF", cMulF), ("cMul", cMul)]
       writeCode code handle = hPutStr handle (printCode code)
+      writeAssembled code handle = hPutStr handle (foldl (\x y -> x ++ "\n" ++ y) [] $ map show $ assemble code)
   mapM_ (\(f, c) -> withFile (f ++ "-intr.s") WriteMode (writeCode c)) files
+  mapM_ (\(f, c) -> withFile (f ++ "-intr.in") WriteMode (writeAssembled c)) files
 
 {-
 
