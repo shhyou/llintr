@@ -104,6 +104,11 @@ struct Stack {
     : type(StackType::EnvType), env(_env) {}
   Stack(const Stack& that) {
     this->type = that.type;
+    if (that.type == StackType::EnvType) {
+      new (&this->env) std::shared_ptr<Env>(that.env);
+    } else {
+      this->addr = that.addr;
+    }
   }
   Stack(Stack&&) = delete;
   Stack& operator=(const Stack& that) {

@@ -9,7 +9,7 @@
 using namespace std;
 
 vector<code_t> get_input() {
-  uint64_t c;
+  int64_t c;
   vector<code_t> res;
   while (cin >> c) {
     res.push_back(c);
@@ -67,26 +67,30 @@ vector<string> disassemble(const vector<code_t>& code) {
 }
 
 int main() {
-  vector<code_t> code(get_input());
-  vector<string> disasm(disassemble(code));
-  for (string& str : disasm) {
-    cout << str << endl;
-  }
-  shared_ptr<Value> res = run(code.data(), code.size());
-  if (not res) {
-    cout << "result is null" << endl;
-  } else {
-    cout << show(res->type) << ": ";
-    switch (res->type) {
-    case ValueType::IntType:
-      cout << dynamic_cast<IntValue*>(res.get())->integer << endl;
-      break;
-    case ValueType::ClosureType:
-      cout << "<function>" << endl;
-      break;
-    default:
-      cout << "unknown value type" << endl;
+  try {
+    vector<code_t> code(get_input());
+    vector<string> disasm(disassemble(code));
+    for (string& str : disasm) {
+      cout << str << endl;
     }
+    shared_ptr<Value> res = run(code.data(), code.size());
+    if (not res) {
+      cout << "result is null" << endl;
+    } else {
+      cout << show(res->type) << ": ";
+      switch (res->type) {
+      case ValueType::IntType:
+        cout << dynamic_cast<IntValue*>(res.get())->integer << endl;
+        break;
+      case ValueType::ClosureType:
+        cout << "<function>" << endl;
+        break;
+      default:
+        cout << "unknown value type" << endl;
+      }
+    }
+  } catch (const exception& e) {
+    cout << "***Exception: " << e.what() << endl;
   }
   return 0;
 }

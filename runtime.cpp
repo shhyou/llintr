@@ -43,6 +43,7 @@ static shared_ptr<Value> env_access(shared_ptr<Env> env, uint64_t idx) {
 }
 
 shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
+  using VT = ValueType;
   Machine M {0, _code_len, codes, {}, {}, Nil()};
   for (;;) {
     Code op = M.fetch<Code>();
@@ -56,8 +57,7 @@ shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
     case FUNCTION:
       {
         addr_t addr = M.fetch<addr_t>();
-        Closure* func = new Closure(addr, M.env);
-        M.values.emplace_back(func);
+        M.values.emplace_back(new Closure(addr, M.env));
       }
       break;
     case SAVE:
@@ -71,10 +71,11 @@ shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
       break;
     case CALL:
       {
-        Closure& closure =
-          dynamic_cast<Closure&>(*M.get_value(ValueType::ClosureType));
+        shared_ptr<Value> closure_val = M.get_value(VT::ClosureType);
+        Closure& closure = dynamic_cast<Closure&>(*closure_val);
         M.values.pop_back();
         shared_ptr<Value> val = M.get_value();
+        M.values.pop_back();
 
         M.stk.emplace_back(M.eip);
         M.env = Cons(val, closure.env);
@@ -98,24 +99,23 @@ shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
       break;
     case ADD:
       {
-        IntValue& val2 =
-          dynamic_cast<IntValue&>(*M.get_value(ValueType::IntType));
+        int val2 = dynamic_cast<IntValue&>(*M.get_value(VT::IntType)).integer;
         M.values.pop_back();
-        IntValue& val1 =
-          dynamic_cast<IntValue&>(*M.get_value(ValueType::IntType));
+
+        int val1 = dynamic_cast<IntValue&>(*M.get_value(VT::IntType)).integer;
         M.values.pop_back();
-        M.values.emplace_back(new IntValue(val1.integer + val2.integer));
+
+        M.values.emplace_back(new IntValue(val1 + val2));
       }
       break;
     case BRANCHNZ_REL:
       {
         diff_t rel = M.fetch<diff_t>();
 
-        IntValue& val =
-          dynamic_cast<IntValue&>(*M.get_value(ValueType::IntType));
+        int val = dynamic_cast<IntValue&>(*M.get_value(VT::IntType)).integer;
         M.values.pop_back();
 
-        if (val.integer != 0) {
+        if (val != 0) {
           M.eip = M.eip + rel;
         }
       }
