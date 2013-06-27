@@ -2,6 +2,7 @@
 *.slo
 *.lo
 *.o
+*.exe
 
 # Compiled Dynamic libraries
 *.so
@@ -12,6 +13,7 @@
 *.la
 *.a
 
+*.d
 # assembly files
 *.s
 *.in
