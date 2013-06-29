@@ -7,17 +7,18 @@
 #include<memory>
 
 enum Code {
-  ACCESS = 0,
-  FUNCTION = 1,
-  SAVE = 2,
-  RESTORE = 3,
-  CALL = 4,
-  RETURN = 5,
-  HALT = 6,
-  CONSTINT = 7,
-  ADD = 8,
-  BRANCHNZ_REL = 9,
-  JUMP_REL = 10
+  ACCESS = 1,
+  FUNCTION = 2,
+  SAVE = 3,
+  RESTORE = 4,
+  CALL = 5,
+  RETURN = 6,
+  HALT = 7,
+  CONSTINT = 16,
+  ADD = 17,
+  MUL = 18,
+  BRANCHNZ_REL = 32,
+  JUMP_REL = 33
 };
 
 typedef std::uint64_t addr_t;
@@ -95,10 +96,10 @@ enum class StackType { AddrType, EnvType };
 
 struct Stack {
   StackType type;
-  union {
+//  union {
     addr_t addr;
     std::shared_ptr<Env> env;
-  };
+/*  };
   Stack(addr_t _addr) : type(StackType::AddrType), addr(_addr) {}
   Stack(const std::shared_ptr<Env>& _env)
     : type(StackType::EnvType), env(_env) {}
@@ -128,7 +129,10 @@ struct Stack {
     if (this->type == StackType::EnvType) {
       this->env.~shared_ptr<Env>();
     }
-  }
+  }*/
+  Stack(addr_t _addr) : type(StackType::AddrType), addr(_addr), env(nullptr) {}
+  Stack(const std::shared_ptr<Env>& _env)
+    : type(StackType::EnvType), addr(0), env(_env) {}
 };
 
 struct Machine {
@@ -168,4 +172,6 @@ struct Machine {
   }
 };
 
+std::string show(const std::shared_ptr<Value>& val);
+std::string show(Machine& M);
 std::shared_ptr<Value> run(const code_t *codes, size_t code_len);

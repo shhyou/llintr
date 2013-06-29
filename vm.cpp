@@ -23,44 +23,44 @@ vector<string> disassemble(const vector<code_t>& code) {
     switch (*it) {
     case ACCESS:
       ++it;
-      res.push_back(string("access ") + to_string(*it));
+      res.push_back(to_string(it-code.begin()-1) + "\taccess " + to_string(*it));
       break;
     case FUNCTION:
       ++it;
-      res.push_back(string("function ") + to_string(*it));
+      res.push_back(to_string(it-code.begin()-1) + "\tfunction " + to_string(*it));
       break;
     case SAVE:
-      res.push_back("save");
+      res.push_back(to_string(it-code.begin()) + "\tsave");
       break;
     case RESTORE:
-      res.push_back("restore");
+      res.push_back(to_string(it-code.begin()) + "\trestore");
       break;
     case CALL:
-      res.push_back("call");
+      res.push_back(to_string(it-code.begin()) + "\tcall");
       break;
     case RETURN:
-      res.push_back("return");
+      res.push_back(to_string(it-code.begin()) + "\treturn");
       break;
     case HALT:
-      res.push_back("halt");
+      res.push_back(to_string(it-code.begin()) + "\thalt");
       break;
     case CONSTINT:
       ++it;
-      res.push_back(string("constint ") + to_string(static_cast<int64_t>(*it)));
+      res.push_back(to_string(it-code.begin()-1) + "\tconstint " + to_string(static_cast<int64_t>(*it)));
       break;
     case ADD:
-      res.push_back("add");
+      res.push_back(to_string(it-code.begin()) + "\tadd");
       break;
     case BRANCHNZ_REL:
       ++it;
-      res.push_back(string("jnz_rel ") + to_string(*it));
+      res.push_back(to_string(it-code.begin()-1) + "\tjnz_rel +" + to_string(*it));
       break;
     case JUMP_REL:
       ++it;
-      res.push_back(string("jmp_rel ") + to_string(*it));
+      res.push_back(to_string(it-code.begin()-1) + "\tjmp_rel +" + to_string(*it));
       break;
     default:
-      res.push_back(string("Unrecognized op-code: ") + to_string(*it));
+      res.push_back(to_string(it-code.begin()) + "\tUnrecognized op-code: " + to_string(*it));
     }
   }
   return move(res);
