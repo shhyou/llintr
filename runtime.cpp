@@ -111,11 +111,11 @@ shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
     case FUNCTION:
       {
         addr_t addr = M.fetch<addr_t>();
-        M.values.push_back(shared_ptr<Value>{new Closure(addr, M.env)});
+        M.values.emplace_back(new Closure(addr, M.env));
       }
       break;
     case SAVE:
-      M.stk.push_back({M.env});
+      M.stk.emplace_back(M.env);
       break;
     case RESTORE:
       if (M.stk.empty() || M.stk.back().type!=StackType::EnvType)
@@ -131,7 +131,7 @@ shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
         shared_ptr<Value> val = M.get_value();
         M.values.pop_back();
 
-        M.stk.push_back({M.eip});
+        M.stk.emplace_back(M.eip);
         M.env = Cons(val, closure.env);
         M.eip = closure.code_addr;
       }
@@ -148,7 +148,7 @@ shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
     case CONSTINT:
       {
         int integer = M.fetch<int>();
-        M.values.push_back(shared_ptr<Value>{new IntValue(integer)});
+        M.values.emplace_back(new IntValue(integer));
       }
       break;
     case ADD:
@@ -159,7 +159,7 @@ shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
         int val1 = dynamic_cast<IntValue&>(*M.get_value(VT::IntType)).integer;
         M.values.pop_back();
 
-        M.values.push_back(shared_ptr<Value>{new IntValue(val1 + val2)});
+        M.values.emplace_back(new IntValue(val1 + val2));
       }
       break;
     case MUL:
@@ -170,7 +170,7 @@ shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
         int val1 = dynamic_cast<IntValue&>(*M.get_value(VT::IntType)).integer;
         M.values.pop_back();
 
-        M.values.push_back(shared_ptr<Value>{new IntValue(val1 * val2)});
+        M.values.emplace_back(new IntValue(val1 * val2));
       }
       break;
     case BRANCHNZ_REL:

@@ -96,10 +96,10 @@ enum class StackType { AddrType, EnvType };
 
 struct Stack {
   StackType type;
-//  union {
+  union {
     addr_t addr;
     std::shared_ptr<Env> env;
-/*  };
+  };
   Stack(addr_t _addr) : type(StackType::AddrType), addr(_addr) {}
   Stack(const std::shared_ptr<Env>& _env)
     : type(StackType::EnvType), env(_env) {}
@@ -129,10 +129,7 @@ struct Stack {
     if (this->type == StackType::EnvType) {
       this->env.~shared_ptr<Env>();
     }
-  }*/
-  Stack(addr_t _addr) : type(StackType::AddrType), addr(_addr), env(nullptr) {}
-  Stack(const std::shared_ptr<Env>& _env)
-    : type(StackType::EnvType), addr(0), env(_env) {}
+  }
 };
 
 struct Machine {
