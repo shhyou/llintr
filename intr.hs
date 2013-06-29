@@ -431,6 +431,7 @@ flatten (AJump _ label) =
 
 flatSize (FAccess _) = 2
 flatSize (FFunction _) = 2
+flatSize (FConstInt _) = 2
 flatSize (FBranchNZ _) = 2
 flatSize (FJump _) = 2
 flatSize (FLabel _) = 0
