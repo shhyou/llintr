@@ -504,64 +504,21 @@ showByteCode (BJump addr) = [33, fromIntegral addr]
 assemble :: [ByteCode] -> [Int]
 assemble = (showByteCode =<<)
 
-newName :: State Int String
-newName = do
-  n <- get
-  modify (+1)
-  return ('L' : show n)
-
-printCode' :: Code -> State Int (String -> String)
-printCode' (Save c) = do
-  showRest <- printCode' c
-  return $ ("    Save\n" ++) . showRest
-printCode' (Restore c) = do
-  showRest <- printCode' c
-  return $ ("    Restore\n" ++) . showRest
-printCode' (Call c) = do
-  showRest <- printCode' c
-  return $ ("    Call\n" ++) . showRest
-printCode' Return =
-  return ("    Return\n" ++)
-printCode' Halt =
-  return ("    Halt\n" ++)
-printCode' (Access m c) = do
-  showRest <- printCode' c
-  return $ (("    Access " ++ show m ++ "\n") ++) . showRest
-printCode' (Function c e) = do
-  bodyLabel <- newName
-  showRest <- printCode' c
-  showFunction <- printCode' e
-  return $ (("    Function " ++ bodyLabel ++ "\n") ++)
-           . showRest
-           . ((bodyLabel ++ ":\n") ++)
-           . showFunction
-
-printCode' (ConstInt m c) = do
-  showRest <- printCode' c
-  return $ (("    ConstInt " ++ show m ++ "\n") ++) . showRest
-printCode' (Add c) = do
-  showRest <- printCode' c
-  return $ ("    Add\n" ++) . showRest
-printCode' (Mul c) = do
-  showRest <- printCode' c
-  return $ ("    Mul\n" ++) . showRest
-printCode' (BranchNZ e1 e2 c) = do
-  elseLabel <- newName
-  fiLabel <- newName
-  showIf <- printCode' e1
-  showElse <- printCode' e2
-  showRest <- printCode' c
-  return $ (("    BranchNZ " ++ elseLabel ++ "\n") ++)
-           . showIf
-           . (("    Jump " ++ fiLabel ++ "\n") ++)
-           . ((elseLabel ++ ":\n") ++)
-           . showElse
-           . ((fiLabel ++ ":\n") ++)
-           . showRest
-printCode' (Jump _) =
-  return id
-
-printCode c = fst (runState (printCode' c) 0) ""
+printCode :: [ByteCode] -> String
+printCode = concat . map (++ "\n") . map showCode
+  where showCode :: ByteCode -> String
+        showCode (BAccess m) = "    Access " ++ show m
+        showCode (BFunction addr) = "    Function " ++ show addr
+        showCode BSave = "    Save"
+        showCode BRestore = "    Restore"
+        showCode BCall = "    Call"
+        showCode BReturn = "    Return"
+        showCode BHalt = "    Halt"
+        showCode (BConstInt n) = "    ConstInt " ++ show n
+        showCode BAdd = "    Add"
+        showCode BMul = "    Mul"
+        showCode (BBranchNZ addr) = "    BranchNZ " ++ show addr
+        showCode (BJump addr) = "    Jump " ++ show addr
 
 pY = Lambda "f" (Ap pA pA)
   where pA = Lambda "x" (Ap (Var "f") pXX)
@@ -633,9 +590,9 @@ writeAll = do
                ("cadd", cadd), ("c1", c1), ("c2", c2), ("cZ515pred", cZ515pred),
                ("cY", cY), ("cMulF", cMulF), ("cMul", cMul), ("cFactF", cFactF),
                ("cFact", cFact), ("cFact5", cFact5)]
-      --writeCode code handle = hPutStr handle (printCode code)
+      writeCode code handle = hPutStr handle (printCode code)
       writeAssembled code handle = hPutStr handle (concat $ map (++ "\n") $ map show $ assemble code)
-  --mapM_ (\(f, c) -> withFile (f ++ "-intr.s") WriteMode (writeCode c)) files
+  mapM_ (\(f, c) -> withFile (f ++ "-intr.s") WriteMode (writeCode c)) files
   mapM_ (\(f, c) -> withFile (f ++ "-intr.in") WriteMode (writeAssembled c)) files
 
 cl :: Expr -> String -> IO ()
