@@ -78,26 +78,20 @@ translate' var (Lambda x e) c = Function c (translate' (x:var) e Return)
 translate' var (Ap e0 e1) c = Save $
                               translate' var e1 $
                               Restore $
-                              Save $
                               translate' var e0 $
                               Call $
-                              Restore $
                               c
 translate' _ (I n) c = ConstInt n c
 translate' var (Plus e1 e2) c = Save $
                                 translate' var e2 $
                                 Restore $
-                                Save $
                                 translate' var e1 $
-                                Restore $
                                 Add $
                                 c
 translate' var (Times e1 e2) c = Save $
                                  translate' var e2 $
                                  Restore $
-                                 Save $
                                  translate' var e1 $
-                                 Restore $
                                  Mul $
                                  c
 translate' var (IfZ e0 e1 e2) c = Save $
@@ -188,7 +182,7 @@ run (Restore c, vs, (Right env):stk, _) =
   run (c, vs, stk, env)
 run (Call c, (Closure env' e'):v:vs, stk, _) =
   run (e', vs, (Left c):stk, v:env')
-run (Return, vs, (Left c):stk, _:env) =
+run (Return, vs, (Left c):stk, env) =
   run (c, vs, stk, env)
 run (Halt, v:_, _, _) = v
 
@@ -247,7 +241,7 @@ dbg mm@(Restore c, vs, (Right env):stk, _) = do
 dbg mm@(Call c, (Closure env' e'):v:vs, stk, _) = do
   dbgmm mm
   dbg (e', vs, (Left c):stk, v:env')
-dbg mm@(Return, vs, (Left c):stk, _:env) = do
+dbg mm@(Return, vs, (Left c):stk, env) = do
   dbgmm mm
   dbg (c, vs, stk, env)
 dbg mm@(Halt, v:_, _, _) =  do

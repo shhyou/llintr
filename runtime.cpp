@@ -140,7 +140,6 @@ shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
       if (M.stk.back().type != StackType::AddrType)
         throw runtime_error("Expected return address at stack top");
       M.eip = M.stk.back().addr;
-      M.env = dynamic_cast<EnvCons&>(*M.env).cdr;
       M.stk.pop_back();
       break;
     case HALT:
