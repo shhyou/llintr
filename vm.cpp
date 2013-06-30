@@ -38,6 +38,9 @@ vector<string> disassemble(const vector<code_t>& code) {
     case CALL:
       res.push_back(to_string(it-code.begin()) + "\tcall");
       break;
+    case TAILCALL:
+      res.push_back(to_string(it-code.begin()) + "\ttailcall");
+      break;
     case RETURN:
       res.push_back(to_string(it-code.begin()) + "\treturn");
       break;

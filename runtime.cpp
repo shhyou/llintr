@@ -124,6 +124,7 @@ shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
       M.stk.pop_back();
       break;
     case CALL:
+    case TAILCALL:
       {
         shared_ptr<Value> closure_val = M.get_value(VT::ClosureType);
         Closure& closure = dynamic_cast<Closure&>(*closure_val);
@@ -131,7 +132,9 @@ shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
         shared_ptr<Value> val = M.get_value();
         M.values.pop_back();
 
-        M.stk.emplace_back(M.eip);
+        if (op == CALL) {
+          M.stk.emplace_back(M.eip);
+        }
         M.env = Cons(val, closure.env);
         M.eip = closure.code_addr;
       }

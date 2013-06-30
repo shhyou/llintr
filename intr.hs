@@ -389,7 +389,7 @@ annotate :: Code -> AnnotatedCode
 annotate c = fst $ fst $ runState (runStateT (annotate' c) []) 0
 
 data FlatCode = FAccess Word64 | FFunction AnnotateLabel | FSave | FRestore
-              | FCall | FReturn | FHalt | FConstInt Int | FAdd | FMul
+              | FCall | FTailCall | FReturn | FHalt | FConstInt Int | FAdd | FMul
               | FBranchNZ AnnotateLabel | FJump AnnotateLabel
               | FLabel AnnotateLabel
               deriving (Show)
@@ -437,6 +437,11 @@ removeJump (FJump dest : FLabel label : cs)
   | dest == label  = FLabel label : removeJump cs
 removeJump (c : cs) = c : removeJump cs
 
+tailCall :: [FlatCode] -> [FlatCode]
+tailCall [] = []
+tailCall (FCall : FReturn : cs) = FTailCall : tailCall cs
+tailCall (c : cs) = c : tailCall cs
+
 codeAddress :: [FlatCode] -> [(FlatCode, Word64)]
 codeAddress code =
   zip code $ scanl (\offset code -> offset + flatSize code) 0 code
@@ -448,8 +453,9 @@ separateEnv = (\(a, b) -> (map getLabel a, b)) . partition (isLabel . fst)
         getLabel ((FLabel label), addr) = (label, addr)
         getLabel _ = error "getLabel: expected FLabel"
 
-data ByteCode = BAccess Word64 | BFunction Word64 | BSave | BRestore | BCall | BReturn
-              | BHalt | BConstInt Int | BAdd | BMul | BBranchNZ Word64 | BJump Word64
+data ByteCode = BAccess Word64 | BFunction Word64 | BSave | BRestore | BCall
+              | BReturn | BTailCall | BHalt | BConstInt Int | BAdd | BMul
+              | BBranchNZ Word64 | BJump Word64
               deriving (Show)
 
 toByteCode :: [(AnnotateLabel, Word64)] -> [(FlatCode, Word64)] -> [ByteCode]
@@ -461,6 +467,7 @@ toByteCode env = map (byteCode env)
     byteCode _ (FSave, _) = BSave
     byteCode _ (FRestore, _) = BRestore
     byteCode _ (FCall, _) = BCall
+    byteCode _ (FTailCall, _) = BTailCall
     byteCode _ (FReturn, _) = BReturn
     byteCode _ (FHalt, _) = BHalt
     byteCode _ ((FConstInt m), _) = BConstInt m
@@ -476,7 +483,7 @@ toByteCode env = map (byteCode env)
 
 compile :: Expr -> [ByteCode]
 compile expr = toByteCode env flatCodeAndAddr
-  where stages = removeJump . flatten . annotate . translate
+  where stages = tailCall . removeJump . flatten . annotate . translate
         makeEnv = separateEnv . codeAddress
         labeledCode = stages expr
         (env, flatCodeAndAddr) = makeEnv labeledCode
@@ -487,8 +494,9 @@ showByteCode (BFunction addr) = [2, fromIntegral addr]
 showByteCode BSave = [3]
 showByteCode BRestore = [4]
 showByteCode BCall = [5]
-showByteCode BReturn = [6]
-showByteCode BHalt = [7]
+showByteCode BTailCall = [6]
+showByteCode BReturn = [7]
+showByteCode BHalt = [8]
 showByteCode (BConstInt n) = [16, n]
 showByteCode BAdd = [17]
 showByteCode BMul = [18]
@@ -506,6 +514,7 @@ printCode = concat . map (++ "\n") . map showCode
         showCode BSave = "    Save"
         showCode BRestore = "    Restore"
         showCode BCall = "    Call"
+        showCode BTailCall = "    TailCall"
         showCode BReturn = "    Return"
         showCode BHalt = "    Halt"
         showCode (BConstInt n) = "    ConstInt " ++ show n
