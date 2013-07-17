@@ -17,6 +17,15 @@ import System.IO -- for writeAll
 import Data.Word
 import Data.List (elemIndex, intercalate, partition)
 
+data Expr = Var String
+          | Lambda String Expr
+          | Ap Expr Expr
+          | I Int
+          | Plus Expr Expr
+          | Times Expr Expr
+          | IfZ Expr Expr Expr
+          deriving Show
+
 data Code = Access Word64 Code
           | Function Code Code
           | Save Code
@@ -39,15 +48,6 @@ type Env = [Value]
 
 type Values = [Value]
 type Stack = [Either Code Env]
-
-data Expr = Var String
-          | Lambda String Expr
-          | Ap Expr Expr
-          | I Int
-          | Plus Expr Expr
-          | Times Expr Expr
-          | IfZ Expr Expr Expr
-          deriving Show
 
 type Machine = (Code, Values, Stack, Env)
 
