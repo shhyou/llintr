@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 {-
   An abstract machine for call-by-value* lambda calculus.
   https://gist.github.com/suhorng/5355222
@@ -13,17 +15,23 @@
 -}
 
 import Control.Monad.State
+import Control.Monad.Error
+import Control.Monad.Identity
+import Control.Applicative (Applicative, (<*>), (<$>), pure)
 import System.IO -- for writeAll
 import Data.Word
-import Data.List (elemIndex, intercalate, partition)
+import Data.List (elemIndex, intercalate, partition, nub, (\\))
+import qualified Data.Map as Map
 
 data Expr = Var String
           | Lambda String Expr
+          | Let String Expr Expr
           | Ap Expr Expr
           | I Int
           | Plus Expr Expr
           | Times Expr Expr
           | IfZ Expr Expr Expr
+          | Fix Expr
           deriving Show
 
 data Code = Access Word64 Code
@@ -51,6 +59,12 @@ type Stack = [Either Code Env]
 
 type Machine = (Code, Values, Stack, Env)
 
+data Type = TypeVar Int
+          | IntType
+          | Arrow Type Type
+
+type Context = Map.Map Int Type
+
 instance Show Code where
   show (Access m c) = "Var " ++ show m ++ "; " ++ show c
   show (Function c e) = "Function {" ++ show e ++ "}; " ++ show c
@@ -71,10 +85,150 @@ instance Show Value where
   show (Closure env c) = "(\\ -> " ++ show c ++ ")"
   show (IntV m) = show m
 
+typeVars :: Type -> [Int]
+typeVars t = nub $ typeVars' t []
+  where typeVars' (TypeVar v) = (v:)
+        typeVars' IntType = id
+        typeVars' (Arrow t1 t2) = typeVars' t2 . typeVars' t1
+
+prettyPrintType :: Type -> Bool -> String
+prettyPrintType (TypeVar n) _ = "v" ++ show n
+prettyPrintType IntType _ = "Int"
+prettyPrintType (Arrow t1 t2) pos = lparen ++ prettyPrintType t1 True ++
+                                    " -> " ++ prettyPrintType t2  False ++ rparen
+  where (lparen, rparen) | pos       = ("(", ")")
+                         | otherwise = ("", "")
+
+
+prettyPrintQuantification :: Type -> String
+prettyPrintQuantification = ("forall" ++) . concat . map ((" v" ++) . show) . typeVars
+
+instance Show Type where
+  show t = prettyPrintType t False
+
+assertLookup :: (Eq a, Show a) => a -> [(a,b)] -> b
+assertLookup x env =
+  case lookup x env of
+    Just val -> val
+    Nothing  -> error ("Unbound variable " ++ show x)
+
+deepFind :: Context -> Type -> Type
+deepFind _ IntType         = IntType
+deepFind cxt (TypeVar v)   = case Map.lookup v cxt of
+                              Just t  -> deepFind cxt t
+                              Nothing -> TypeVar v
+deepFind cxt (Arrow t1 t2) = Arrow (deepFind cxt t1) (deepFind cxt t2)
+
+occursIn :: Context -> Int -> Type -> Bool
+occursIn cxt v (TypeVar v') =
+  case deepFind cxt (TypeVar v') of
+    TypeVar v'' -> v == v''
+    t'' -> occursIn cxt v t''
+occursIn _ _ IntType = False
+occursIn cxt v (Arrow t1 t2) = occursIn cxt v t1 || occursIn cxt v t2
+
+solve :: (Applicative m, MonadState Context m, MonadError String m)
+      => Type 
+      -> Type
+      -> m ()
+solve IntType IntType =
+  return ()
+solve (Arrow dom1 codom1) (Arrow dom2 codom2) = do
+  solve dom1 dom2
+  solve codom1 codom2
+solve (TypeVar v1) t2 = do
+  cxt <- get
+  case Map.lookup v1 cxt of
+    Just t1 -> solve t1 t2
+    Nothing -> case deepFind cxt t2 of
+                TypeVar v2 | v1 == v2 -> return ()
+                t2' -> if occursIn cxt v1 t2'
+                       then throwError . strMsg $ "Unable to construct type " ++ show (TypeVar v1) ++ " = " ++ show t2'
+                                                ++ "\nIn the context of: " ++ show cxt
+                       else put $ Map.insert v1 t2' cxt
+solve t1 (TypeVar v2) =
+  solve (TypeVar v2) t1
+solve t1 t2 = do
+  cxt <- get
+  throwError . strMsg $ "Unable to solve " ++ show t1 ++ " with " ++ show t2
+                      ++ "\nin the context of " ++ show cxt
+
+nextVar :: MonadState Int m
+        => m Int
+nextVar = modify (+1) >> get
+
+instantiate :: MonadState Int m
+        => Type
+        -> [Int]
+        -> m Type
+instantiate t oldVars = do
+  vars <- mapM (const nextVar) oldVars
+  return (substitute (zip oldVars vars) t)
+  where substitute _ IntType = IntType
+        substitute lst (TypeVar v) = case lookup v lst of
+                                      Just v' -> TypeVar v'
+                                      Nothing -> TypeVar v
+        substitute lst (Arrow t1 t2) = Arrow (substitute lst t1) (substitute lst t2)
+
+buildUp :: (Applicative m, MonadState Context m, MonadError String m)
+        => [(String, Int)]  -- context
+        -> [(String, (Type, [Int]))] -- polymorphic type
+        -> Expr
+        -> StateT Int m Type
+buildUp _ _ (I _) =
+  return IntType
+buildUp cxt poly (Var x) =
+  case lookup x cxt of
+    Just v -> deepFind <$> (lift get) <*> pure (TypeVar v)
+    Nothing -> uncurry instantiate (assertLookup x poly)
+buildUp cxt poly (Lambda x e) = do
+  va <- nextVar
+  b <- buildUp ((x,va):cxt) poly e
+  deepFind <$> (lift get) <*> pure (Arrow (TypeVar va) b)
+buildUp cxt poly (Ap e1 e2) = do
+  a2b <- buildUp cxt poly e1
+  a <- buildUp cxt poly e2
+  b <- TypeVar <$> nextVar
+  lift $ solve a2b (Arrow a b)
+  deepFind <$> (lift get) <*> pure b
+buildUp cxt poly (Let x e body) = do
+  t <- buildUp cxt poly e
+  buildUp cxt ((x, (t, typeVars t \\ map snd cxt)):poly) body
+buildUp cxt poly (Plus e1 e2) = do
+  t1 <- buildUp cxt poly e1
+  t2 <- buildUp cxt poly e2
+  lift $ solve t1 IntType
+  lift $ solve t2 IntType
+  return IntType
+buildUp cxt poly (Times e1 e2) = do
+  t1 <- buildUp cxt poly e1
+  t2 <- buildUp cxt poly e2
+  lift $ solve t1 IntType
+  lift $ solve t2 IntType
+  return IntType
+buildUp cxt poly (IfZ e0 e1 e2) = do
+  t0 <- buildUp cxt poly e0
+  t1 <- buildUp cxt poly e1
+  t2 <- buildUp cxt poly e2
+  lift $ solve t0 IntType
+  lift $ solve t1 t2
+  deepFind <$> (lift get) <*> pure t1
+buildUp cxt poly (Fix e) = do
+  a2a <- buildUp cxt poly e
+  a <- TypeVar <$> nextVar
+  lift $ solve a2a (Arrow a a)
+  deepFind <$> (lift get) <*> pure a
+
+runMonads :: s -> StateT s (ErrorT String Identity) a -> Either String (a, s)
+runMonads initState = runIdentity . runErrorT . flip runStateT initState
+
+typeInfer = fmap (fst . fst) . runMonads Map.empty . flip runStateT 0 . buildUp [] []
+
 translate' :: [String] -> Expr -> Code -> Code
 translate' var (Var x) c = Access (fromIntegral  idx) c
   where idx = maybe (error ("Unbound variable: " ++ x)) id (x `elemIndex` var)
 translate' var (Lambda x e) c = Function c (translate' (x:var) e Return)
+translate' var (Let x e1 e2) c = translate' var (Ap (Lambda x e2) e1) c
 translate' var (Ap e0 e1) c = Save $
                               translate' var e1 $
                               Restore $
@@ -100,6 +254,7 @@ translate' var (IfZ e0 e1 e2) c = Save $
                                   BranchNZ (translate' var e1 (Jump c))
                                            (translate' var e2 (Jump c))
                                            c
+translate' var (Fix e) c = translate' var (Ap pY e) c
 
 {-
   Save; e2; Restore; e1; Call; rest
@@ -482,7 +637,10 @@ toByteCode env = map (byteCode env)
                                  (lookup label table)
 
 compile :: Expr -> [ByteCode]
-compile expr = toByteCode env flatCodeAndAddr
+compile expr =
+  case typeInfer expr of
+    Left str -> error str
+    Right _ -> toByteCode env flatCodeAndAddr
   where stages = tailCall . removeJump . flatten . annotate . translate
         makeEnv = separateEnv . codeAddress
         labeledCode = stages expr
@@ -533,7 +691,7 @@ pMulF = Lambda "self" $
               (I 0)
               (Plus (Var "m") (Ap (Ap (Var "self") (Plus (Var "n") (I (-1)))) (Var "m")))
 
-pMul = Ap pY pMulF
+pMul = Fix pMulF
 
 pFactF = Lambda "self" $
             Lambda "n" $
@@ -541,8 +699,8 @@ pFactF = Lambda "self" $
                 (I 1)
                 (Ap (Ap pMul (Var "n")) (Ap (Var "self") (Plus (Var "n") (I (-1)))))
 
-pFact = Ap pY pFactF
-pFact5 = Ap (Ap pY pFactF) (I 5)
+pFact = Fix pFactF
+pFact5 = Ap (Fix pFactF) (I 5)
 
 tid = translate pid
 tzero = translate pzero
@@ -591,7 +749,7 @@ writeAll = do
                ("ctest4", ctest4), ("ctest5", ctest5), ("ctest6", ctest6),
                ("cflip", cflip), ("cid", cid), ("czero", czero), ("csuc", csuc),
                ("cadd", cadd), ("c1", c1), ("c2", c2), ("cZ515pred", cZ515pred),
-               ("cY", cY), ("cMulF", cMulF), ("cMul", cMul), ("cFactF", cFactF),
+               {-("cY", cY),-} ("cMulF", cMulF), ("cMul", cMul), ("cFactF", cFactF),
                ("cFact", cFact), ("cFact5", cFact5)]
       writeCode code handle = hPutStr handle (printCode code)
       writeAssembled code handle = hPutStr handle (concat $ map (++ "\n") $ map show $ assemble code)
