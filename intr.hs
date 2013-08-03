@@ -702,6 +702,10 @@ pFactF = Lambda "self" $
 pFact = Fix pFactF
 pFact5 = Ap (Fix pFactF) (I 5)
 
+pLetId = Let "id" (Lambda "x" (Var "x")) $
+         Let "idid" (Ap (Var "id") (Var "id")) $
+         Ap (Ap p1 (Ap (Var "idid") (I 5))) (Ap (Var "idid") (Var "id"))
+
 tid = translate pid
 tzero = translate pzero
 tsuc = translate psuc
@@ -722,6 +726,7 @@ tMul = translate pMul
 tFactF = translate pFactF
 tFact = translate pFact
 tFact5 = translate pFact5
+tLetId = translate pLetId
 
 cid = compile pid
 czero = compile pzero
@@ -743,6 +748,7 @@ cMul = compile pMul
 cFactF = compile pFactF
 cFact = compile pFact
 cFact5 = compile pFact5
+cLetId = compile pLetId
 
 writeAll = do
   let files = [("ctest1", ctest1), ("ctest2", ctest2), ("ctest3", ctest3),
@@ -750,7 +756,7 @@ writeAll = do
                ("cflip", cflip), ("cid", cid), ("czero", czero), ("csuc", csuc),
                ("cadd", cadd), ("c1", c1), ("c2", c2), ("cZ515pred", cZ515pred),
                {-("cY", cY),-} ("cMulF", cMulF), ("cMul", cMul), ("cFactF", cFactF),
-               ("cFact", cFact), ("cFact5", cFact5)]
+               ("cFact", cFact), ("cFact5", cFact5), ("cLetId", cLetId)]
       writeCode code handle = hPutStr handle (printCode code)
       writeAssembled code handle = hPutStr handle (concat $ map (++ "\n") $ map show $ assemble code)
   mapM_ (\(f, c) -> withFile (f ++ "-intr.s") WriteMode (writeCode c)) files
