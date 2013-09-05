@@ -1,0 +1,2113 @@
+<!DOCTYPE html>
+<html class="remark-container"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+    <title>&lambda;-Calculus</title>
+    <link rel="stylesheet" href="./style.css">
+  </head>
+  <body class="remark-container">
+    <textarea id="source" style="display: none;">name: inverse
+class: inverse, center, middle, front-page
+layout: true
+---
+.large[.left[Write Yourself a]]
+# Toy &lambda;-Calculus Virtual Machine
+[suhorng](https://github.com/suhorng)
+.footnote[Slideshow created using [remark](http://github.com/gnab/remark)]
+---
+layout: false
+# Introduction
+.left-column[
+## Executing the &lambda;-Calculus
+]
+.right-column[
+### Compile to target machine code
+The code is processed through a series of transformations
+
+  - (A-normalization)
+
+  - (Continuation-passing style conversion)
+
+  - Closure conversion
+
+  - ...
+
+Each pass uses various intermediate representations,
+which can somewhat be viewed as abstract machines.
+]
+---
+# Introduction
+.left-column[
+## Executing the &lambda;-Calculus
+]
+.right-column[
+### Run on a virtual machine
+- Compiling to virtual machines can be much easier
+
+- There are lots of (theoretical?) abstract machines: CEK, Krivine's machine, the SECD machine...
+
+- Also practical implementations: Scheme48, OCaml, languages that use JVM as their backend
+
+- There are, of couse, native-code compilers or just-in-time compilers
+  - e.g. `ocamlopt`
+]
+---
+# Introduction
+.left-column[
+## Executing the &lambda;-Calculus
+]
+.right-column[
+### Run on a virtual machine - OCaml
+- `ocamlc -output-obj -o fib.c fib.ml`
+
+```
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include <caml/mlvalues.h>
+CAMLextern void caml_startup_code(
+           code_t code, asize_t code_size,
+           char *data, asize_t data_size,
+           char *section_table,
+           asize_t section_table_size,
+           char **argv);
+static int caml_code[] = {
+0x00000054, 0x000003e3, 0x00000029, 0x0000002a,
+0x00000001, 0x00000000, 0x00000056, 0x0000000e, 
+0x00000000, 0x00000044, 0x0000000b, 0x00000043, 
+0x0000000d, 0x0000000c, 0x00000032, 0x00000022, 
+0x0000000b, 0x00000040, 0x00000000, 0x00000028, 
+0x00000004, 0x00000001, 0x00000028, 0x00000002, 
+0x00000029, 0x0000002a, 0x00000003, 0x00000003
+...
+```
+]
+---
+# Introduction
+.left-column[
+## Executing the &lambda;-Calculus
+## Designing a Machine
+]
+.right-column[
+Instead of directly design a machine, we start by writing a simple
+&lambda;-calculus interpreter, then transform it into a low-level form
+from which we can create our machine.
+]
+---
+# Introduction
+.left-column[
+## Executing the &lambda;-Calculus
+## Designing a Machine
+]
+.right-column[
+Instead of directly design a machine, we start by writing a simple
+&lambda;-calculus interpreter, then transform it into a low-level form
+from which we can create our machine.
+
+These include:
+
+- Continuation-passing style transformation
+
+which makes the control context explicit
+]
+---
+# Introduction
+.left-column[
+## Executing the &lambda;-Calculus
+## Designing a Machine
+]
+.right-column[
+Instead of directly design a machine, we start by writing a simple
+&lambda;-calculus interpreter, then transform it into a low-level form
+from which we can create our machine.
+
+These include:
+
+- Continuation-passing style transformation
+
+which makes the control context explicit, and
+
+- Defunctionalization
+
+that replace higher-order functions by data types.
+]
+---
+# Introduction
+.left-column[
+## Executing the &lambda;-Calculus
+## Designing a Machine
+]
+.right-column[
+Instead of directly design a machine, we start by writing a simple
+&lambda;-calculus interpreter, then transform it into a low-level form
+from which we can create our machine.
+
+These include:
+
+- Continuation-passing style transformation
+
+which makes the control context explicit, and
+
+- Defunctionalization
+
+that replace higher-order functions by data types.
+Finally, we can
+
+- Merge different states and make the continuation linear
+
+So that the resulting code looks just like a machine.
+]
+---
+# Continuations
+.left-column[
+## How do we do reductions?
+]
+.right-column[
+```
+4^2 + (1 + 2) * 3
+```
+]
+---
+# Continuations
+.left-column[
+## How do we do reductions?
+]
+.right-column[
+```
+4^2 + (1 + 2) * 3
+```
+
+.eval[.context[4^2] + (1 + 2) * 3]]
+---
+# Continuations
+.left-column[
+## How do we do reductions?
+]
+.right-column[
+```
+4^2 + (1 + 2) * 3
+```
+
+.eval[16 + (1 + 2) * 3]
+]
+---
+# Continuations
+.left-column[
+## How do we do reductions?
+]
+.right-column[
+```
+4^2 + (1 + 2) * 3
+```
+
+.eval[16 + .context[(1 + 2)] * 3]
+]
+---
+# Continuations
+.left-column[
+## How do we do reductions?
+]
+.right-column[
+```
+4^2 + (1 + 2) * 3
+```
+
+.eval[16 + 3 * 3]
+]
+---
+# Continuations
+.left-column[
+## How do we do reductions?
+]
+.right-column[
+```
+4^2 + (1 + 2) * 3
+```
+
+.eval[16 + .context[3 * 3]]
+]
+---
+# Continuations
+.left-column[
+## How do we do reductions?
+]
+.right-column[
+```
+4^2 + (1 + 2) * 3
+```
+
+.eval[16 + 9]
+]
+---
+# Continuations
+.left-column[
+## How do we do reductions?
+]
+.right-column[
+```
+4^2 + (1 + 2) * 3
+```
+
+.eval[.context[16 + 9]]
+]
+---
+# Continuations
+.left-column[
+## How do we do reductions?
+]
+.right-column[
+```
+4^2 + (1 + 2) * 3
+```
+
+.eval[25]
+]
+---
+# Continuations
+.left-column[
+## How do we do reductions?
+## The rest of computation
+]
+.right-column[
+```
+4^2 + (1 + 2) * 3 ==> 25
+```
+
+- Identify the next expression (redex) to evaluate (reduce)  
+
+- 
+
+.eval[.context[4^2] + (1 + 2) * 3]  
+
+.eval[16 + .context[(1 + 2)] * 3]  
+
+.eval[16 + .context[3 * 3]]  
+
+.eval[.context[16 + 9]]  
+]
+---
+# Continuations
+.left-column[
+## How do we do reductions?
+## The rest of computation
+]
+.right-column[
+```
+4^2 + (1 + 2) * 3 ==> 25
+```
+
+- Identify the next expression (redex) to evaluate (reduce)  
+
+- The rest is called the **continuation**
+
+.eval[.context[ _ ] + (1 + 2) * 3]  
+
+.eval[16 + .context[ _ ] * 3]  
+
+.eval[16 + .context[ _ ]]  
+
+.eval[.context[ _ ]]
+
+They wait for a value to continue the rest of the computation.
+
+]
+---
+# Continuations
+.left-column[
+## How do we do reductions?
+## The rest of computation
+]
+.right-column[
+```
+4^2 + (1 + 2) * 3 ==> 25
+```
+
+- Identify the next expression (redex) to evaluate (reduce)  
+
+- The rest is called the **continuation**
+
+.eval[.context[ _ ] + (1 + 2) * 3]  
+
+.eval[16 + .context[ _ ] * 3]  
+
+.eval[16 + .context[ _ ]]  
+
+.eval[.context[ _ ]]
+
+They wait for a value to continue the rest of the computation.
+
+...don't they look like *function*s?
+]
+---
+# Continuation Passing Style (CPS)
+.left-column[
+## Make the continuation explicit!
+]
+.right-column[
+.eval[.context[ _ ] + (1 + 2) * 3]  
+]
+---
+# Continuation Passing Style (CPS)
+.left-column[
+## Make the continuation explicit!
+]
+.right-column[
+.eval[&lambda;x. .context[ x ] + (1 + 2) * 3]  
+]
+---
+# Continuation Passing Style (CPS)
+.left-column[
+## Make the continuation explicit!
+]
+.right-column[
+.eval[&lambda;x. x + (1 + 2) * 3]  
+]
+---
+# Continuation Passing Style (CPS)
+.left-column[
+## Make the continuation explicit!
+]
+.right-column[
+.eval[&lambda;x. x + (1 + 2) * 3]  
+
+By representing the continuations as functions, we can now pass them
+around, even store in data structures.
+
+```
+sqr = &lambda;k &rarr; k (4^2)
+comp_after_sqr = &lambda;x &rarr; x + (1 + 2) * 3
+```
+
+Now, every function takes an extra parameter that serves for the rest of the computation.
+
+.eval[sqr comp_after_sqr]
+]
+---
+# Continuation Passing Style (CPS)
+.left-column[
+## Make the continuation explicit!
+## Convention?
+]
+.right-column[
+.eval[&lambda;x. x + (1 + 2) * 3]  
+
+**Every step** of the computation and the transfer of the control should be expressed explicitly.
+
+To be precise, all *non-value* term (e.g. function application) can only take *value* parameters.
+
+    {-
+        v ::= c
+            | &lambda;x. e
+
+        e ::= v
+            | (e1 e2 ...)
+    -}
+
+    -- not good
+    &lambda;x y z. ((x z) (y z))
+
+    -- good
+    &lambda;x' y' z' &kappa;. (x' z' (&lambda;f.
+                          (y' z' (&lambda;v.
+                                   (f v &kappa;)))
+]
+---
+# Continuation Passing Style (CPS)
+.left-column[
+## Make the continuation explicit!
+## Convention?
+]
+.right-column[
+.eval[&lambda;x. x + (1 + 2) * 3]  
+
+**Every step** of the computation and the transfer of the control should be expressed explicitly.
+
+To be precise, all *non-value* term (e.g. function application) can only take *value* parameters.
+
+.eval[&lambda;x. .green[x + .context[(1 + 2) * 3]]]
+]
+---
+# Continuation Passing Style (CPS)
+.left-column[
+## Make the continuation explicit!
+## Convention?
+]
+.right-column[
+.eval[&lambda;x. x + (1 + 2) * 3]  
+
+**Every step** of the computation and the transfer of the control should be expressed explicitly.
+
+To be precise, all *non-value* term (e.g. function application) can only take *value* parameters.
+
+.eval[&lambda;x. mul (1 + 2) 3 .green[(&lambda;v. x + v)]]
+
+where
+
+```
+mul x y k = k (x * y)
+```
+]
+---
+# Continuation Passing Style (CPS)
+.left-column[
+## Make the continuation explicit!
+## Convention?
+]
+.right-column[
+.eval[&lambda;x. x + (1 + 2) * 3]  
+
+**Every step** of the computation and the transfer of the control should be expressed explicitly.
+
+To be precise, all *non-value* term (e.g. function application) can only take *value* parameters.
+
+.eval[&lambda;x. .green[mul .context[(1 + 2)] 3 (]&lambda;v. x + v .green[)]]
+
+where
+
+```
+mul x y k = k (x * y)
+```
+]
+---
+# Continuation Passing Style (CPS)
+.left-column[
+## Make the continuation explicit!
+## Convention?
+]
+.right-column[
+.eval[&lambda;x. x + (1 + 2) * 3]  
+
+**Every step** of the computation and the transfer of the control should be expressed explicitly.
+
+To be precise, all *non-value* term (e.g. function application) can only take *value* parameters.
+
+.eval[&lambda;x. add 1 2 .green[(&lambda;u. mul u 3 ](&lambda;v. x + v).green[)]]
+
+where
+
+```
+mul x y k = k (x * y)
+add x y k = k (x + y)
+```
+]
+---
+# Continuation Passing Style (CPS)
+.left-column[
+## Make the continuation explicit!
+## Convention?
+]
+.right-column[
+.eval[&lambda;x. x + (1 + 2) * 3]  
+
+**Every step** of the computation and the transfer of the control should be expressed explicitly.
+
+To be precise, all *non-value* term (e.g. function application) can only take *value* parameters.
+
+```
+comp = &lambda;x &rarr;
+        add 1 2 (&lambda;u &rarr;
+                  mul u 3 (&lambda;v &rarr;
+                            (+) x v))
+
+mul x y k = k (x * y)
+add x y k = k (x + y)
+```
+
+There we are!
+]
+---
+# Continuation Passing Style (CPS)
+.left-column[
+## Make the continuation explicit!
+## Convention?
+]
+.right-column[
+.eval[&lambda;x. x + (1 + 2) * 3]  
+
+**Every step** of the computation and the transfer of the control should be expressed explicitly.
+
+To be precise, all *non-value* term (e.g. function application) can only take *value* parameters.
+
+```
+comp = &lambda;x &kappa; &rarr;
+        add 1 2 (&lambda;u &rarr;
+                  mul u 3 (&lambda;v &rarr;
+                            add x v &kappa;))
+
+mul x y k = k (x * y)
+add x y k = k (x + y)
+```
+
+Instead of having `comp` defined as the last continuation, we can also
+make it a normal computation that passes the result to yet another
+continuation.
+]
+---
+# Defunctionalization
+Not that scary as it may sound.
+
+We love higher-order functions:
+```
+flipmap :: [Int] &rarr; (Int &rarr; Int) &rarr; [Int]
+flipmap []      _ = []
+flipmap (x::xs) f = f x :: flipmap xs f
+
+increment n xs = flipmap xs (+n)
+--               Note the free variable `n`!
+```
+---
+# Defunctionalization
+Not that scary as it may sound.
+
+We love higher-order functions:
+```
+flipmap :: [Int] &rarr; IntToInt &rarr; [Int]
+flipmap []      _ = []
+flipmap (x::xs) f = apply f x :: flipmap xs f
+
+increment n xs = flipmap xs (Add n)
+--               The free variable is saved in data structure
+```
+And *defunctionalization* means replacing first-class functions by data structures,
+with their application be dispatch uniformly by an `apply` function.
+```
+data IntToInt = Add Int
+
+apply :: IntToInt &rarr; (Int &rarr; Int)
+apply (Add n) m = n + m
+```
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+]
+.right-column[
+### Our Language
+- Call-by-value &lambda;-calculus with right-to-left evaluation.
+
+```
+data Expr = Var String
+          | Lam String Expr
+          | Ap Expr Expr
+          | Zero
+          | Suc Expr
+```
+
+```
+data Value = F (Value -> Value) | I Int
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+]
+.right-column[
+### An Interpreter
+```
+data Value = F (Value -> Value) | I Int
+
+eval0 :: Expr -> [(String, Value)] -> Value
+eval0 (Var x)    env = lookupEnv env x
+eval0 (Lam x e)  env = F (\v -> eval0 e ((x,v):env))
+eval0 (Ap e1 e2) env =
+  case eval0 e2 env of
+    v -> case eval0 e1 env of
+           F f -> f v
+eval0 Zero       env = I 0
+eval0 (Suc e)    env =
+  case eval0 e env of
+    I n -> I (n + 1)
+```
+
+- ```
+  func = &lambda;x &rarr; x + ((&lambda;x &rarr; (x+1)) 3)
+  ```
+  The inner most `x` is bound by the closest &lambda;-function, which
+  corresponds to the first occurence of `x` in the environment.
+  Hence `lookupEnv` looks for the first occurence of `x`.
+  
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+]
+.right-column[
+### An Interpreter
+```
+data Value = F [(String,Value)] String Expr | I Int
+
+eval1 :: Expr -> [(String, Value)] -> Value
+eval1 (Var x)    env = lookupEnv env x
+eval1 (Lam x e)  env = F env x e
+eval1 (Ap e1 e2) env =
+  case eval1 e2 env of
+    v -> case eval1 e1 env of
+           F env' x' e' -> eval1 e' ((x',v):env')
+eval1 Zero       env = I 0
+eval1 (Suc e)    env =
+  case eval1 e env of
+    I n -> I (n + 1)
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+## Transform to CPS
+]
+.right-column[
+### An Interpreter
+```
+data Value = F [(String,Value)] String Expr | I Int
+
+eval2 :: Expr -> [(String, Value)] -> (Value->a) -> a
+eval2 (Var x)    env k = lookupEnv env x
+eval2 (Lam x e)  env k = F env x e
+eval2 (Ap e1 e2) env k =
+  case eval1 e2 env of
+    v -> case eval1 e1 env of
+           F env' x' e' -> eval1 e' ((x',v):env')
+eval2 Zero       env k = I 0
+eval2 (Suc e)    env k =
+  case eval1 e env of
+    I n -> I (n + 1)
+
+eval e = eval2 e [] id
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+## Transform to CPS
+]
+.right-column[
+### An Interpreter
+```
+data Value = F [(String,Value)] String Expr | I Int
+
+eval2 :: Expr -> [(String, Value)] -> (Value->a) -> a
+eval2 (Var x)    env k = k (lookupEnv env x)
+eval2 (Lam x e)  env k = k (F env x e)
+eval2 (Ap e1 e2) env k =
+  case eval1 e2 env of
+    v -> case eval1 e1 env of
+           F env' x' e' -> eval1 e' ((x',v):env')
+eval2 Zero       env k = k (I 0)
+eval2 (Suc e)    env k =
+  case eval1 e env of
+    I n -> k (I (n + 1))
+
+eval e = eval2 e [] id
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+## Transform to CPS
+]
+.right-column[
+### An Interpreter
+```
+data Value = F [(String,Value)] String Expr | I Int
+
+eval2 :: Expr -> [(String, Value)] -> (Value->a) -> a
+eval2 (Var x)    env k = k (lookupEnv env x)
+eval2 (Lam x e)  env k = k (F env x e)
+eval2 (Ap e1 e2) env k =
+  case eval1 e2 env of
+    v -> case eval1 e1 env of
+           F env' x' e' -> eval1 e' ((x',v):env')
+eval2 Zero       env k = k (I 0)
+eval2 (Suc e)    env k =
+       eval2 e env (\(I n) ->
+           k (I (n + 1)))
+
+eval e = eval2 e [] id
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+## Transform to CPS
+]
+.right-column[
+### An Interpreter
+```
+data Value = F [(String,Value)] String Expr | I Int
+
+eval2 :: Expr -> [(String, Value)] -> (Value->a) -> a
+eval2 (Var x)    env k = k (lookupEnv env x)
+eval2 (Lam x e)  env k = k (F env x e)
+eval2 (Ap e1 e2) env k =
+       eval2 e2 env (\v ->
+         case eval1 e1 env of
+           F env' x' e' -> eval1 e' ((x',v):env'))
+eval2 Zero       env k = k (I 0)
+eval2 (Suc e)    env k =
+       eval2 e env (\(I n) ->
+           k (I (n + 1)))
+
+eval e = eval2 e [] id
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+## Transform to CPS
+]
+.right-column[
+### An Interpreter
+```
+data Value = F [(String,Value)] String Expr | I Int
+
+eval2 :: Expr -> [(String, Value)] -> (Value->a) -> a
+eval2 (Var x)    env k = k (lookupEnv env x)
+eval2 (Lam x e)  env k = k (F env x e)
+eval2 (Ap e1 e2) env k =
+       eval2 e2 env (\v ->
+              eval2 e1 env (\(F env' x' e') ->
+                           eval1 e' ((x',v):env')))
+eval2 Zero       env k = k (I 0)
+eval2 (Suc e)    env k =
+       eval2 e env (\(I n) ->
+           k (I (n + 1)))
+
+eval e = eval2 e [] id
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+## Transform to CPS
+]
+.right-column[
+### An Interpreter
+```
+data Value = F [(String,Value)] String Expr | I Int
+
+eval2 :: Expr -> [(String, Value)] -> (Value->a) -> a
+eval2 (Var x)    env k = k (lookupEnv env x)
+eval2 (Lam x e)  env k = k (F env x e)
+eval2 (Ap e1 e2) env k =
+       eval2 e2 env (\v ->
+              eval2 e1 env (\(F env' x' e') ->
+                           eval2 e' ((x',v):env') k))
+eval2 Zero       env k = k (I 0)
+eval2 (Suc e)    env k =
+       eval2 e env (\(I n) ->
+           k (I (n + 1)))
+
+eval e = eval2 e [] id
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+## Transform to CPS
+## Defunc(ry the Continuation
+]
+.right-column[
+### An Interpreter
+```
+data Value = F [(String,Value)] String Expr | I Int
+
+eval3 :: Expr -> [(String, Value)] -> Cont -> Value
+eval3 (Var x)    env k = k (lookupEnv env x)
+eval3 (Lam x e)  env k = k (F env x e)
+eval3 (Ap e1 e2) env k =
+       eval3 e2 env (\v ->
+              eval3 e1 env (\(F env' x' e') ->
+                           eval3 e' ((x',v):env') k))
+eval3 Zero       env k = k (I 0)
+eval3 (Suc e)    env k =
+       eval3 e env (\(I n) ->
+           k (I (n + 1)))
+
+eval e = eval2 e [] Id
+
+data Cont = Id
+
+apply Id v = v
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+## Transform to CPS
+## Defunc(ry the Continuation
+]
+.right-column[
+### An Interpreter
+```
+data Value = F [(String,Value)] String Expr | I Int
+
+eval3 :: Expr -> [(String, Value)] -> Cont -> Value
+eval3 (Var x)    env k = apply k (lookupEnv env x)
+eval3 (Lam x e)  env k = apply k (F env x e)
+eval3 (Ap e1 e2) env k =
+       eval3 e2 env (\v ->
+              eval3 e1 env (\(F env' x' e') ->
+                           eval3 e' ((x',v):env') k))
+eval3 Zero       env k = apply k (I 0)
+eval3 (Suc e)    env k =
+       eval3 e env (\(I n) ->
+           apply k (I (n + 1)))
+
+eval e = eval2 e [] Id
+
+data Cont = Id
+
+apply Id v = v
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+## Transform to CPS
+## Defunc(ry the Continuation
+]
+.right-column[
+### An Interpreter
+```
+data Value = F [(String,Value)] String Expr | I Int
+
+eval3 :: Expr -> [(String, Value)] -> Cont -> Value
+eval3 (Var x)    env k = apply k (lookupEnv env x)
+eval3 (Lam x e)  env k = apply k (F env x e)
+eval3 (Ap e1 e2) env k =
+       eval3 e2 env (\v ->
+              eval3 e1 env (\(F env' x' e') ->
+                           eval3 e' ((x',v):env') k))
+eval3 Zero       env k = apply k (I 0)
+eval3 (Suc e)    env k =
+       eval3 e env (Cont1 k)
+
+
+eval e = eval2 e [] Id
+
+data Cont = Id | Cont1 Cont
+
+apply Id v = v
+apply (Cont1 k) (I n) = apply k (I (n + 1))
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+## Transform to CPS
+## Defunc(ry the Continuation
+]
+.right-column[
+### An Interpreter
+```
+eval3 (Var x)    env k = apply k (lookupEnv env x)
+eval3 (Lam x e)  env k = apply k (F env x e)
+eval3 (Ap e1 e2) env k =
+  eval3 e2 env (\v ->
+    eval3 e1 env (\(F env' x' e') ->
+      eval3 e' ((x',v):env') k))
+eval3 Zero       env k = apply k (I 0)
+eval3 (Suc e)    env k =
+  eval3 e env (Cont1 k)
+
+eval e = eval2 e [] Id
+
+data Cont = Id | Cont1 Cont
+
+
+apply Id v = v
+apply (Cont1 k) (I n) = apply k (I (n + 1))
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+## Transform to CPS
+## Defunc(ry the Continuation
+]
+.right-column[
+### An Interpreter
+```
+eval3 (Var x)    env k = apply k (lookupEnv env x)
+eval3 (Lam x e)  env k = apply k (F env x e)
+eval3 (Ap e1 e2) env k =
+  eval3 e2 env (\v ->
+    eval3 e1 env (Cont2 v k)
+
+eval3 Zero       env k = apply k (I 0)
+eval3 (Suc e)    env k =
+  eval3 e env (Cont1 k)
+
+eval e = eval2 e [] Id
+
+data Cont = Id | Cont1 Cont | Cont2 Value Cont 
+
+
+apply Id v = v
+apply (Cont1 k) (I n) = apply k (I (n + 1))
+apply (Cont2 v k) (F env' x' e') =
+  eval3 e' ((x',v):env') k
+```
+]
+---
+# The Beginning
+.left-column[
+## Writing an Interpreter
+## Defunc(ry
+## Transform to CPS
+## Defunc(ry the Continuation
+]
+.right-column[
+### An Interpreter
+```
+eval3 (Var x)    env k = apply k (lookupEnv env x)
+eval3 (Lam x e)  env k = apply k (F env x e)
+eval3 (Ap e1 e2) env k =
+  eval3 e2 env (Cont3 env e1 k)
+
+
+eval3 Zero       env k = apply k (I 0)
+eval3 (Suc e)    env k =
+  eval3 e env (Cont1 k)
+
+eval e = eval2 e [] Id
+
+data Cont = Id | Cont1 Cont | Cont2 Value Cont 
+          | Cont3 [(String,Value)] Expr Cont
+
+apply Id v = v
+apply (Cont1 k) (I n) = apply k (I (n + 1))
+apply (Cont2 v k) (F env' x' e') =
+  eval3 e' ((x',v):env') k
+apply (Cont3 env e1 k) v =
+  eval3 e1 env (Cont2 v k)
+```
+]
+---
+# Execution
+```
+   eval3 (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero)) []
+    Id
+```
+.interp-code[
+```
+eval3 (Var x)    env k = apply k (lookupEnv env x)
+eval3 (Lam x e)  env k = apply k (F env x e)
+eval3 (Ap e1 e2) env k =
+  eval3 e2 env (Cont3 env e1 k)
+eval3 Zero       env k = apply k (I 0)
+eval3 (Suc e)    env k =
+  eval3 e env (Cont1 k)
+```
+]
+---
+# Execution
+```
+   eval3 (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero)) []
+    Id
+=> eval3 (Suc Zero) []
+    (Cont3 [] (Lam "x" (...)) Id)                              -- call
+```
+.interp-code[
+```
+eval3 (Var x)    env k = apply k (lookupEnv env x)
+eval3 (Lam x e)  env k = apply k (F env x e)
+eval3 (Ap e1 e2) env k =
+  eval3 e2 env (Cont3 env e1 k)
+eval3 Zero       env k = apply k (I 0)
+eval3 (Suc e)    env k =
+  eval3 e env (Cont1 k)
+```
+]
+---
+# Execution
+```
+   eval3 (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero)) []
+    Id
+=> eval3 (Suc Zero) []
+    (Cont3 [] (Lam "x" (...)) Id)
+=> eval3 Zero []
+    (Cont1 (Cont3 [] (Lam "x" (...)) Id))                      -- call
+```
+.interp-code[
+```
+eval3 (Var x)    env k = apply k (lookupEnv env x)
+eval3 (Lam x e)  env k = apply k (F env x e)
+eval3 (Ap e1 e2) env k =
+  eval3 e2 env (Cont3 env e1 k)
+eval3 Zero       env k = apply k (I 0)
+eval3 (Suc e)    env k =
+  eval3 e env (Cont1 k)
+```
+]
+---
+# Execution
+```
+   eval3 (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero)) []
+    Id
+=> eval3 (Suc Zero) []
+    (Cont3 [] (Lam "x" (...)) Id)
+=> eval3 Zero []
+    (Cont1 (Cont3 [] (Lam "x" (...)) Id))
+=> apply (Cont1 (Cont3 [] (...) Id)) (I 0)                     -- return
+```
+.interp-code[
+```
+apply Id v = v
+apply (Cont1 k) (I n) = apply k (I (n + 1))
+apply (Cont2 v k) (F env' x' e') =
+  eval3 e' ((x',v):env') k
+apply (Cont3 env e1 k) v =
+  eval3 e1 env (Cont2 v k)
+--
+```
+]
+---
+# Execution
+```
+   eval3 (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero)) []
+    Id
+=> eval3 (Suc Zero) []
+    (Cont3 [] (Lam "x" (...)) Id)
+=> eval3 Zero []
+    (Cont1 (Cont3 [] (Lam "x" (...)) Id))
+=> apply (Cont1 (Cont3 [] (...) Id)) (I 0)
+
+=> apply (Cont3 [] (Lam "x" (Suc ...)) Id) (I 1)               -- return
+```
+.interp-code[
+```
+apply Id v = v
+apply (Cont1 k) (I n) = apply k (I (n + 1))
+apply (Cont2 v k) (F env' x' e') =
+  eval3 e' ((x',v):env') k
+apply (Cont3 env e1 k) v =
+  eval3 e1 env (Cont2 v k)
+--
+```
+]
+---
+# Execution
+```
+   eval3 (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero)) []
+    Id
+=> eval3 (Suc Zero) []
+    (Cont3 [] (Lam "x" (...)) Id)
+=> eval3 Zero []
+    (Cont1 (Cont3 [] (Lam "x" (...)) Id))
+=> apply (Cont1 (Cont3 [] (...) Id)) (I 0)
+
+=> apply (Cont3 [] (Lam "x" (Suc ...)) Id) (I 1)
+
+=> eval3 (Lam "x" (Suc (Suc ...))) []
+    (Cont2 (I 1) Id)                                           -- call
+```
+.interp-code[
+```
+eval3 (Var x)    env k = apply k (lookupEnv env x)
+eval3 (Lam x e)  env k = apply k (F env x e)
+eval3 (Ap e1 e2) env k =
+  eval3 e2 env (Cont3 env e1 k)
+eval3 Zero       env k = apply k (I 0)
+eval3 (Suc e)    env k =
+  eval3 e env (Cont1 k)
+```
+]
+---
+# Execution
+```
+   eval3 (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero)) []
+    Id
+=> eval3 (Suc Zero) []
+    (Cont3 [] (Lam "x" (...)) Id)
+=> eval3 Zero []
+    (Cont1 (Cont3 [] (Lam "x" (...)) Id))
+=> apply (Cont1 (Cont3 [] (...) Id)) (I 0)
+
+=> apply (Cont3 [] (Lam "x" (Suc ...)) Id) (I 1)
+
+=> eval3 (Lam "x" (Suc (Suc ...))) []
+    (Cont2 (I 1) Id)
+=> apply (Cont2 (I 1) Id) (F [] "x" (Suc (Suc (Var "x"))))     -- return
+```
+.interp-code[
+```
+apply Id v = v
+apply (Cont1 k) (I n) = apply k (I (n + 1))
+apply (Cont2 v k) (F env' x' e') =
+  eval3 e' ((x',v):env') k
+apply (Cont3 env e1 k) v =
+  eval3 e1 env (Cont2 v k)
+--
+```
+]
+---
+# Execution
+```
+   eval3 (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero)) []
+    Id
+=> eval3 (Suc Zero) []
+    (Cont3 [] (Lam "x" (...)) Id)
+=> eval3 Zero []
+    (Cont1 (Cont3 [] (Lam "x" (...)) Id))
+=> apply (Cont1 (Cont3 [] (...) Id)) (I 0)
+
+=> apply (Cont3 [] (Lam "x" (Suc ...)) Id) (I 1)
+
+=> eval3 (Lam "x" (Suc (Suc ...))) []
+    (Cont2 (I 1) Id)
+=> apply (Cont2 (I 1) Id) (F [] "x" (Suc (Suc (Var "x"))))
+
+=> eval3 (Suc (Suc (Var "x"))) [("x",I 1)]
+    Id                                                         -- call
+```
+.interp-code[
+```
+eval3 (Var x)    env k = apply k (lookupEnv env x)
+eval3 (Lam x e)  env k = apply k (F env x e)
+eval3 (Ap e1 e2) env k =
+  eval3 e2 env (Cont3 env e1 k)
+eval3 Zero       env k = apply k (I 0)
+eval3 (Suc e)    env k =
+  eval3 e env (Cont1 k)
+```
+]
+---
+# Execution
+```
+   eval3 (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero)) []
+    Id
+=> eval3 (Suc Zero) []
+    (Cont3 [] (Lam "x" (...)) Id)
+=> eval3 Zero []
+    (Cont1 (Cont3 [] (Lam "x" (...)) Id))
+=> apply (Cont1 (Cont3 [] (...) Id)) (I 0)
+
+=> apply (Cont3 [] (Lam "x" (Suc ...)) Id) (I 1)
+
+=> eval3 (Lam "x" (Suc (Suc ...))) []
+    (Cont2 (I 1) Id)
+=> apply (Cont2 (I 1) Id) (F [] "x" (Suc (Suc (Var "x"))))
+
+=> eval3 (Suc (Suc (Var "x"))) [("x",I 1)]
+    Id
+=> eval3 (Suc (Var "x")) [("x",I 1)]
+    (Cont1 Id)
+```
+.interp-code[
+```
+eval3 (Var x)    env k = apply k (lookupEnv env x)
+eval3 (Lam x e)  env k = apply k (F env x e)
+eval3 (Ap e1 e2) env k =
+  eval3 e2 env (Cont3 env e1 k)
+eval3 Zero       env k = apply k (I 0)
+eval3 (Suc e)    env k =
+  eval3 e env (Cont1 k)
+```
+]
+---
+# Execution
+```
+   eval3 (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero)) []
+    Id
+=> eval3 (Suc Zero) []
+    (Cont3 [] (Lam "x" (...)) Id)
+=> eval3 Zero []
+    (Cont1 (Cont3 [] (Lam "x" (...)) Id))
+=> apply (Cont1 (Cont3 [] (...) Id)) (I 0)
+
+=> apply (Cont3 [] (Lam "x" (Suc ...)) Id) (I 1)
+
+=> eval3 (Lam "x" (Suc (Suc ...))) []
+    (Cont2 (I 1) Id)
+=> apply (Cont2 (I 1) Id) (F [] "x" (Suc (Suc (Var "x"))))
+
+=> eval3 (Suc (Suc (Var "x"))) [("x",I 1)]
+    Id
+=> eval3 (Suc (Var "x")) [("x",I 1)]
+    (Cont1 Id)
+=> eval3 (Var "x") [("x",I 1)]
+    (Cont1 (Cont1 Id))
+```
+.interp-code[
+```
+eval3 (Var x)    env k = apply k (lookupEnv env x)
+eval3 (Lam x e)  env k = apply k (F env x e)
+eval3 (Ap e1 e2) env k =
+  eval3 e2 env (Cont3 env e1 k)
+eval3 Zero       env k = apply k (I 0)
+eval3 (Suc e)    env k =
+  eval3 e env (Cont1 k)
+```
+]
+---
+# Execution
+```
+   eval3 (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero)) []
+    Id
+=> eval3 (Suc Zero) []
+    (Cont3 [] (Lam "x" (...)) Id)
+=> eval3 Zero []
+    (Cont1 (Cont3 [] (Lam "x" (...)) Id))
+=> apply (Cont1 (Cont3 [] (...) Id)) (I 0)
+
+=> apply (Cont3 [] (Lam "x" (Suc ...)) Id) (I 1)
+
+=> eval3 (Lam "x" (Suc (Suc ...))) []
+    (Cont2 (I 1) Id)
+=> apply (Cont2 (I 1) Id) (F [] "x" (Suc (Suc (Var "x"))))
+
+=> eval3 (Suc (Suc (Var "x"))) [("x",I 1)]
+    Id
+=> eval3 (Suc (Var "x")) [("x",I 1)]
+    (Cont1 Id)
+=> eval3 (Var "x") [("x",I 1)]
+    (Cont1 (Cont1 Id))
+=> apply (Cont1 (Cont1 Id)) (I 1)
+```
+.interp-code[
+```
+apply Id v = v
+apply (Cont1 k) (I n) = apply k (I (n + 1))
+apply (Cont2 v k) (F env' x' e') =
+  eval3 e' ((x',v):env') k
+apply (Cont3 env e1 k) v =
+  eval3 e1 env (Cont2 v k)
+--
+```
+]
+---
+# Execution
+```
+   eval3 (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero)) []
+    Id
+=> eval3 (Suc Zero) []
+    (Cont3 [] (Lam "x" (...)) Id)
+=> eval3 Zero []
+    (Cont1 (Cont3 [] (Lam "x" (...)) Id))
+=> apply (Cont1 (Cont3 [] (...) Id)) (I 0)
+
+=> apply (Cont3 [] (Lam "x" (Suc ...)) Id) (I 1)
+
+=> eval3 (Lam "x" (Suc (Suc ...))) []
+    (Cont2 (I 1) Id)
+=> apply (Cont2 (I 1) Id) (F [] "x" (Suc (Suc (Var "x"))))
+
+=> eval3 (Suc (Suc (Var "x"))) [("x",I 1)]
+    Id
+=> eval3 (Suc (Var "x")) [("x",I 1)]
+    (Cont1 Id)
+=> eval3 (Var "x") [("x",I 1)]
+    (Cont1 (Cont1 Id))
+=> apply (Cont1 (Cont1 Id)) (I 1)
+
+=> ...
+
+=> apply Id (I 3)
+```
+.interp-code[
+```
+apply Id v = v
+apply (Cont1 k) (I n) = apply k (I (n + 1))
+apply (Cont2 v k) (F env' x' e') =
+  eval3 e' ((x',v):env') k
+apply (Cont3 env e1 k) v =
+  eval3 e1 env (Cont2 v k)
+--
+```
+]
+---
+# The first machine
+We have actually made a stack-based machine with 2 states. You can rename data types if you wish.
+```
+data Expr = Var String | Lam String Expr | Ap Expr Expr
+          | Zero       | Suc Expr
+
+data Value = F [(String,Value)] String Expr | I Int
+
+data Stack = Halt | Inc Stack | Apply Value Stack 
+           | Call [(String,Value)] Expr Stack
+
+execState :: Expr -> [(String, Value)] -> Stack -> Value
+execState (Var x)    env k = valState k (lookupEnv env x)
+execState (Lam x e)  env k = valState k (F env x e)
+execState (Ap e1 e2) env k = execState e2 env (Call env e1 k)
+execState Zero       env k = valState k (I 0)
+execState (Suc e)    env k = execState e env (Inc k)
+
+valState :: Stack -> Value -> Value
+valState Halt            v              = v
+valState (Inc k)         (I n)          = valState k (I (n + 1))
+valState (Apply v k)     (F env' x' e') = execState e' ((x',v):env') k
+valState (Call env e1 k) v              = execState e1 env (Apply v k)
+
+run e = let I n = execState e [] Halt in n
+```
+---
+# The first machine
+Observe that the `Stack` actually contains some sort of instructions, with saved values on which the operation order does not interleave.
+```
+data Expr = Var String | Lam String Expr | Ap Expr Expr
+          | Zero       | Suc Expr
+
+data Value = F [(String,Value)] String Expr | I Int
+
+data Stack = Halt | Inc Stack | Apply Value Stack 
+           | Call [(String,Value)] Expr Stack
+
+execState :: Expr -> [(String, Value)] -> Stack -> Value
+execState (Var x)    env k = valState k (lookupEnv env x)
+execState (Lam x e)  env k = valState k (F env x e)
+execState (Ap e1 e2) env k = execState e2 env (Call env e1 k)
+execState Zero       env k = valState k (I 0)
+execState (Suc e)    env k = execState e env (Inc k)
+
+valState :: Stack -> Value -> Value
+valState Halt            v              = v
+valState (Inc k)         (I n)          = valState k (I (n + 1))
+valState (Apply v k)     (F env' x' e') = execState e' ((x',v):env') k
+valState (Call env e1 k) v              = execState e1 env (Apply v k)
+
+run e = let I n = execState e [] Halt in n
+```
+---
+# More Realistic Code
+How should we unify `valState` and `execState`? How to separate instructions
+from saved values on the stack, and generate them at compile time?
+```
+data Expr = Var String | Lam String Expr | Ap Expr Expr
+          | Zero       | Suc Expr
+
+data Value = F [(String,Value)] String Expr | I Int
+
+data Stack = Halt | Inc Stack | Apply Value Stack 
+           | Call [(String,Value)] Expr Stack
+
+execState :: Expr -> [(String, Value)] -> Stack -> Value
+execState (Var x)    env k = valState k (lookupEnv env x)
+execState (Lam x e)  env k = valState k (F env x e)
+execState (Ap e1 e2) env k = execState e2 env (Call env e1 k)
+execState Zero       env k = valState k (I 0)
+execState (Suc e)    env k = execState e env (Inc k)
+
+valState :: Stack -> Value -> Value
+valState Halt            v              = v
+valState (Inc k)         (I n)          = valState k (I (n + 1))
+valState (Apply v k)     (F env' x' e') = execState e' ((x',v):env') k
+valState (Call env e1 k) v              = execState e1 env (Apply v k)
+
+run e = let I n = execState e [] Halt in n
+```
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+]
+.right-column[
+```
+execState (Var x)   env k =
+  valState k (lookupEnv env x)
+execState (Lam x e) env k =
+  valState k (F env x e)
+execState Zero      env k =
+  valState k (I 0)
+valState  (Inc k)   (I n) =
+  valState k (I (n + 1))
+```
+These are instructions that produce values.
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+]
+.right-column[
+```
+execState (Var x)   env k =
+  valState k (lookupEnv env x)
+execState (Lam x e) env k =
+  valState k (F env x e)
+execState Zero      env k =
+  valState k (I 0)
+valState  (Inc k)   (I n) =
+  valState k (I (n + 1))
+```
+These are instructions that produce values.
+```
+execState (Ap e1 e2)  env k =
+  execState e2 env (Call env e1 k)
+execState (Suc e)     env k =
+  execState e env  (Inc k)
+valState  (Call env e1 k) v =
+  execState e1 env (Apply v k)
+valState  (Apply v k) (F env' x' e') =
+  execState e' ((x',v):env') k
+```
+Only transitions to `execState` will modify the stack.
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+]
+.right-column[
+Let's just put everything together anyway.
+```
+data Code = Halt |  Inc Code  | Apply Code
+          | Call Code {- ? -} | Access String Code
+          | Closure String Code Code
+          | App Code Code {- ? -}
+          | Const0 Code | S Code {- ? -}
+```
+- `Halt`, `Inc`, `Apply`, `Call` correspond to constructors in the `Stack`. (Recall:
+      data Stack = Halt | Inc Stack | Apply Value Stack 
+                 | Call [(String,Value)] Expr Stack
+- `Var _` &rarr; `Access _`  
+  `Lam _ _` &rarr; `Closure _ _`  
+  `Zero` &rarr; `Const0`
+
+There are strange places (`{- ? -}`).
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+]
+.right-column[
+Let's just put everything together anyway.
+```
+data Code = Halt |  Inc Code  | Apply Code
+          | Call Code {- ? -} | Access String Code
+          | Closure String Code Code
+          | App Code Code {- ? -}
+          | Const0 Code | S Code {- ? -}
+```
+Let's generate the continuation data type `Stack` at compile time.
+```
+compile' :: Expr -> (Code -> Code)
+```
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+]
+.right-column[
+Let's just put everything together anyway.
+```
+data Code = Halt |  Inc Code  | Apply Code
+          | Call Code {- ? -} | Access String Code
+          | Closure String Code Code
+          | App Code Code {- ? -}
+          | Const0 Code | S Code {- ? -}
+```
+Let's generate the continuation data type `Stack` at compile time.
+```
+compile' :: Expr -> (Code -> Code)
+```
+- `Halt`: this comes from
+      run e = let I n = execState e [] Halt in n
+  So we insert it at the end of the code.
+      compile expr = compile' expr Halt
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+]
+.right-column[
+Let's just put everything together anyway.
+```
+data Code = Halt |  Inc Code  | Apply Code
+          | Call Code {- ? -} | Access String Code
+          | Closure String Code Code
+          | App Code Code {- ? -}
+          | Const0 Code | S Code {- ? -}
+```
+Let's generate the continuation data type `Stack` at compile time.
+```
+compile' :: Expr -> (Code -> Code)
+```
+- `Inc`:
+      execState (Suc e) env k = execState e env (Inc k)
+      valState (Inc k) (I n)  = valState k (I (n + 1))
+
+      compile' (Suc e) rest = compile' e (Inc rest)
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+]
+.right-column[
+Let's just put everything together anyway.
+```
+data Code = Halt |  Inc Code  | Apply Code
+          | Call Code {- ? -} | Access String Code
+          | Closure String Code Code
+          | App Code Code {- ? -}
+          | Const0 Code | S Code {- ? -}
+```
+Let's generate the continuation data type `Stack` at compile time.
+
+- `Apply`, `Call`:
+      execState (Ap e1 e2) env k =
+        execState e2 env (Call env e1 k)
+      valState (Call env e1 k) v =
+        execState e1 env (Apply v k)
+      valState (Apply v k) (F env' x' e') =
+        execState e' ((x',v):env') k
+
+      compile' (Ap e1 e2) rest =
+        compile' e2 (Call (  -- Does it has any effect?
+        compile' e1 (Apply rest)))
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+]
+.right-column[
+Let's just put everything together anyway.
+```
+data Code = Halt |  Inc Code  | Apply Code
+          | Restore Code      | Access String Code
+          | Closure String Code Code | Save Code
+          | App Code Code {- ? -}
+          | Const0 Code | S Code {- ? -}
+```
+Let's generate the continuation data type `Stack` at compile time.
+
+- `Apply`, `Call`:
+      execState (Ap e1 e2) env k =      --Note the free
+        execState e2 env (Call env e1 k)--    variables
+      valState (Call env e1 k) v =
+        execState e1 env (Apply v k)
+      valState (Apply v k) (F env' x' e') =
+        execState e' ((x',v):env') k
+
+      compile' (Ap e1 e2) rest =
+        Save (          -- The environment does matter!
+        compile' e2 (Restore (
+        compile' e1 (Apply rest))))
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+]
+.right-column[
+Let's just put everything together anyway.
+```
+data Code = Halt |  Inc Code  | Apply Code
+          | Restore Code      | Access String Code
+          | Closure String Code Code | Save Code
+          | App Code Code {- ? -}
+          | Const0 Code | S Code {- ? -}
+```
+Let's generate the continuation data type `Stack` at compile time.
+
+- `Access`, `Const0`:
+      compile' (Var x) rest = Access x rest
+      compile' Zero    rest = Const0 rest
+- `Closure`:
+
+  Where should we begin...?
+      compile' (Lam x e) rest =
+        Closure x (compile' e ?) rest
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+]
+.right-column[
+Let's just put everything together anyway.
+```
+data Code = Halt |  Inc Code  | Apply Code
+          | Restore Code      | Access String Code
+          | Closure String Code Code | Save Code
+          | App Code Code {- ? -} | Return
+          | Const0 Code | S Code {- ? -}
+```
+Let's generate the continuation data type `Stack` at compile time.
+
+- `Access`, `Const0`:
+      compile' (Var x) rest = Access x rest
+      compile' Zero    rest = Const0 rest
+- `Closure`:
+
+  A new terminal.
+      compile' (Lam x e) rest =
+        Closure x (compile' e Return) rest
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+]
+.right-column[
+Remove incorrect constructors now :).
+```
+data Code = Halt |  Inc Code  | Apply Code
+          | Restore Code      | Access String Code
+          | Closure String Code Code | Save Code
+          | Return
+          | Const0 Code
+```
+We are left with operational semantics of the machine.
+```
+compile' (Suc e) rest =
+  compile' e (Inc rest)
+compile' (Ap e1 e2) rest =
+  Save $
+  compile' e2 $ Restore $
+  compile' e1 (Apply rest)
+compile' (Var x) rest =
+  Access x rest
+compile' Zero    rest =
+  Const0 rest
+compile' (Lam x e) rest =
+  Closure x (compile' e Return) rest
+  
+compile expr = compile' expr Halt
+```
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+## The machine
+]
+.right-column[
+```
+data Code = Halt |  Inc Code  | Apply Code
+          | Restore Code      | Access String Code
+          | Closure String Code Code | Save Code
+          | Return
+          | Const0 Code
+```
+The type of the machine:  
+`(Code, [(String, Value)], Stack)`
+```
+data Value = F [(String,Value)] String Code | I Int
+```
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+## The machine
+]
+.right-column[
+```
+data Code = Halt |  Inc Code  | Apply Code
+          | Restore Code      | Access String Code
+          | Closure String Code Code | Save Code
+          | Return
+          | Const0 Code
+```
+The type of the machine:  
+`(Code, [(String, Value)], Stack, [Value])`
+```
+data Value = F [(String,Value)] String Code | I Int
+```
+Instead of having the value stored in `Stack`,
+we create a separate stack to save them.
+This is due to the interleaveing use of `env` and `v`.
+```
+execState (Ap e1 e2) env k =
+  execState e2 env (Call env e1 k)
+valState (Call env e1 k) v =
+  execState e1 env (Apply v k)
+valState (Apply v k) (F env' x' e') =
+  execState e' ((x',v):env') k
+```
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+## The machine
+]
+.right-column[
+```
+data Code = Halt |  Inc Code  | Apply Code
+          | Restore Code      | Access String Code
+          | Closure String Code Code | Save Code
+          | Return
+          | Const0 Code
+```
+The type of the machine:  
+`(Code, [(String, Value)], [Stack], [Value])`
+```
+data Value = F [(String,Value)] String Code | I Int
+```
+And we shall now have a new `Stack`:
+```
+data Stack = Env [(String,Value)]
+           | Addr Code
+```
+The actual stack is represented by `[Stack]`.
+]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+## The machine
+]
+.right-column[
+Now just follow your intuition.
+```
+eval Halt _ [v] [] = v
+```
+.light-code[
+```
+valState Halt v = v
+```
+]]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+## The machine
+]
+.right-column[
+Now just follow your intuition.
+```
+eval Halt _ [v] [] = v
+eval (Const0 c) env vs stk =
+  eval c env (I 0 : vs) stk
+eval (Closure x e c) env vs stk =
+  eval c env (F env x e : vs) stk
+eval (Access x c) env vs stk =
+  eval c env (lookupEnv env x : vs) stk
+```
+.light-code[
+```
+execState (Var x)    env k = valState k (lookupEnv env x)
+execState (Lam x e)  env k = valState k (F env x e)
+execState Zero       env k = valState k (I 0)
+```
+]]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+## The machine
+]
+.right-column[
+Now just follow your intuition.
+```
+eval Halt _ [v] [] = v
+eval (Const0 c) env vs stk =
+  eval c env (I 0 : vs) stk
+eval (Closure x e c) env vs stk =
+  eval c env (F env x e : vs) stk
+eval (Access x c) env vs stk =
+  eval c env (lookupEnv env x : vs) stk
+eval (Inc c) env (I n : vs) stk =
+  eval c env (I (n+1) : vs) stk
+```
+.light-code[
+```
+execState (Suc e) env k =
+  execState e env (Inc k)
+valState (Inc k) (I n) =
+  valState k (I (n + 1))
+```
+]]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+## The machine
+]
+.right-column[
+Now just follow your intuition.
+```
+eval Halt _ [v] [] = v
+eval (Const0 c) env vs stk =
+  eval c env (I 0 : vs) stk
+eval (Closure x e c) env vs stk =
+  eval c env (F env x e : vs) stk
+eval (Access x c) env vs stk =
+  eval c env (lookupEnv env x : vs) stk
+eval (Inc c) env (I n : vs) stk =
+  eval c env (I (n+1) : vs) stk
+eval (Save c) env vs stk =
+  eval c env vs (Env env : stk)
+eval (Restore c) _ vs (Env env : stk) =
+  eval c env vs stk
+eval (Apply c) _ (F env x e : v : vs) stk =
+  eval e ((x,v):env) vs (Addr c : stk)
+eval Return env vs (Addr c : stk) =
+  eval c env vs stk
+```
+.light-code[
+```
+execState (Ap e1 e2) env k =
+  execState e2 env (Call env e1 k)
+valState (Call env e1 k) v =
+  execState e1 env (Apply v k)
+valState (Apply v k) (F env' x' e') =
+  execState e' ((x',v):env') k
+```
+]]
+---
+# More Realistic Code
+.left-column[
+## Where can we transfer to valState?
+## How about execState?
+## New code arrived!
+## The machine
+]
+.right-column[
+Now just follow your intuition.
+```
+eval Halt _ [v] [] = v
+eval (Const0 c) env vs stk =
+  eval c env (I 0 : vs) stk
+eval (Closure x e c) env vs stk =
+  eval c env (F env x e : vs) stk
+eval (Access x c) env vs stk =
+  eval c env (lookupEnv env x : vs) stk
+eval (Inc c) env (I n : vs) stk =
+  eval c env (I (n+1) : vs) stk
+eval (Save c) env vs stk =
+  eval c env vs (Env env : stk)
+eval (Restore c) _ vs (Env env : stk) =
+  eval c env vs stk
+eval (Apply c) _ (F env x e : v : vs) stk =
+  eval e ((x,v):env) vs (Addr c : stk)
+eval Return env vs (Addr c : stk) =
+  eval c env vs stk
+
+run c = eval c [] [] []
+```
+.eval[run (Ap (Lam "x" (Suc (Suc (Var "x")))) (Suc Zero))
+=> I 3]]
+---
+# Instruction Summary
+<table cellspacing="0">
+  <thead>
+  </thead>
+  <tfoot></tfoot>
+  <tbody>
+    <tr><th>Code</th><th>Env.</th><th>Values</th><th>Stack</th>
+        <th class="mapsto"></th>
+        <th>Code</th><th>Env.</th><th>Values</th><th>Stack</th></tr>
+    <tr><td>Const0; c</td><td>e</td><td>vs</td><td>stk</td>
+        <td class="mapsto">&map;</td>
+        <td>c</td><td>e</td><td>0:vs</td><td>stk</td></tr>
+    <tr><td>Access x; c</td><td>e</td><td>vs</td><td>stk</td>
+        <td class="mapsto">&map;</td>
+        <td>c</td><td>e</td><td>e[x]:vs</td><td>stk</td></tr>
+    <tr><td>Closure x c'; c</td><td>e</td><td>vs</td><td>stk</td>
+        <td class="mapsto">&map;</td>
+        <td>c</td><td>e</td><td>(e, x, c'):vs</td><td>stk</td></tr>
+    <tr><td>Save; c</td><td>e</td><td>vs</td><td>stk</td>
+        <td class="mapsto">&map;</td>
+        <td>c</td><td>e</td><td>vs</td><td>e:stk</td></tr>
+    <tr><td>Restore; c</td><td>\_</td><td>vs</td><td>e:stk</td>
+        <td class="mapsto">&map;</td>
+        <td>c</td><td>e</td><td>vs</td><td>stk</td></tr>
+    <tr><td>Apply; c</td><td>\_</td><td>(e, x, c'):v:vs</td><td>stk</td>
+        <td class="mapsto">&map;</td>
+        <td>c'</td><td>(x,v):e</td><td>vs</td><td>c:stk</td></tr>
+    <tr><td>Return</td><td>e</td><td>vs</td><td>c:stk</td>
+        <td class="mapsto">&map;</td>
+        <td>c</td><td>e</td><td>vs</td><td>stk</td></tr>
+    <tr><td>Inc; c</td><td>e</td><td>n:vs</td><td>stk</td>
+        <td class="mapsto">&map;</td>
+        <td>c</td><td>e</td><td>(n+1):vs</td><td>stk</td></tr>
+    <tr><td>Halt</td><td>\_</td><td>v:\_</td><td>\_</td>
+        <td class="mapsto">&map;</td>
+        <td colspan="4" style="text-align: center;">v</td></tr>
+  </tbody>
+</table>
+
+- Note that both destructive and non-destructive implementation are possible.
+  The semantics here does not limit anything on the implementation.
+
+- The `Code` is not quite linear -- the `Closure` makes it a tree. It is
+  possible in implementation to avoid trees though.
+---
+# And then?
+.left-column[
+##Low-Level Implementation
+]
+.right-column[
+It's now easy to implement the virtual machine in low-level languages like C/C++.
+```
+shared_ptr<Value> run(const code_t *codes, size_t _code_len) {
+  using VT = ValueType;
+  Machine M {0, _code_len, codes, {}, {}, Nil()};
+  for (;;) {
+    Code op = M.fetch<Code>();
+    switch (op) {
+    case ACCESS:
+      { uint64_t idx = M.fetch<uint64_t>();
+        M.values.push_back(env_access(M.env, idx)); }
+      break;
+    case FUNCTION:
+      { addr_t addr = M.fetch<addr_t>();
+        M.values.emplace_back(new Closure(addr, M.env)); }
+      break;
+    case SAVE:
+      M.stk.emplace_back(M.env);
+      break;
+    case RESTORE:
+      if (M.stk.empty() || M.stk.back().type!=StackType::EnvType)
+        throw runtime_error("Expected saved environment at stack top");
+      M.env = M.stk.back().env;
+      M.stk.pop_back();
+      break;
+```
+]
+---
+# And then?
+.left-column[
+## Low-Level Implementation
+## Adding more primitives
+]
+.right-column[
+
+- Branching: In continuation-passing style, `(if con th el)` must  be at tail position, e.g.
+      (lambda (pred? f g x &kappa;)
+        (pred? x (lambda (b)
+                    (let [(&kappa;_0 (lambda (v) (* v 2 &kappa;)))]
+                      (if b (f x &kappa;_0) (g x &kappa;_0))))))
+
+- Fixed-point construction
+
+- Data types
+
+- ...
+]
+---
+# And then?
+.left-column[
+## Low-Level Implementation
+## Adding more primitives
+## More to go...
+]
+.right-column[
+
+- Convert to de Bruijn index at compile time, simplifying the virtual machine.
+  - (`Code`, `[Value]`, `[Value]`, `[Stack]`)
+  - `(Access n;c , env , vs , stk)`  
+    &map; `(c , env , (env!!n):vs , stk)`
+  - `(Closure c';c , env , vs , stk)`  
+    &map; `(c , env , (env, c'):vs , stk)`
+  - `(Apply;c ,  _  , (env, c'):v:vs , stk)`  
+    &map; `(c' , v:env , vs, c:stk)`
+- Improve environment access (Takes linear time currently)
+
+- Optimizations, e.g. we generate a lot of redundant `Save`/`Restore` pairs.
+
+- Type inference (compiler)
+
+- ...
+]
+---
+# References
+- Mads Sig Ager, Dariusz Biernacki, Olivier Danvy, and Jan Midtgaard. 2003.  
+  *A functional correspondence between evaluators and abstract machines.* In Proceedings of the 5th ACM SIGPLAN international conference on Principles and practice of declaritive programming (PPDP '03). ACM, New York, NY, USA, 8-19
+
+- Daniel P. Friedman, Mitchell Wand, Christopher T. Haynes.  
+  *Essentials of Programming Languages*, first edition. The MIT Press.
+
+- [niche computing science](http://www.iis.sinica.edu.tw/~scm/): Deriving a Virtual Machine  
+  [http://www.iis.sinica.edu.tw/~scm/2007/deriving-a-virtual-machine/](http://www.iis.sinica.edu.tw/~scm/2007/deriving-a-virtual-machine/)
+
+## Implementation
+- An coarse implementation can be found
+  [here](https://github.com/suhorng/llintr/blob/master/vm.cpp),
+  where the virtual machine differs slightly. The codes are immature, though.
+
+- The accompanying codes for this presentation is [here](???).
+---
+class: inverse, center, middle
+# Thank you!
+.interp-code[
+```
+                                                 >
+                                                <<
+                                    __         >>>
+                               (___()'`;      <<<<
+                               /,    /`      >>>>>
+                          jgs  \\"--\\      <<<<<<
+http://www.geocities.com/spunk1111/small.htm:>>>>>
+```
+]
+    </textarea>
+    <script src="./remark-0.5.4.min.js" type="text/javascript"></script>
+    <script src="./highlight.pack.js"></script>
+    <script type="text/javascript">
+      /* override default hljs engine to provide Haskell syntax highlight */
+      remark.highlighter.engine = hljs;
+    </script>
+    <script type="text/javascript">
+      var slideshow = remark.create({
+          highlightStyle: 'ir_black',
+          highlightLanguage: 'haskell'
+        }) ;
+    </script>
+    <div class="remark-notes-area">hello world</div>
+</body></html>
